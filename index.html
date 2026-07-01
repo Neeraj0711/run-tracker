@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>🏃 Daily Run Tracker</title>
+<style>
+  :root{
+    --bg:#0f1420; --card:#1a2130; --card2:#222c40; --line:#2c3850;
+    --txt:#e7ecf5; --muted:#8b97ad; --accent:#4dd08a; --accent2:#3a86ff;
+    --warn:#ffb020; --bad:#ff5c6c; --good:#4dd08a; --chip:#2a3550;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:linear-gradient(180deg,#0f1420,#141b2b); color:var(--txt); min-height:100vh;}
+  .wrap{max-width:900px; margin:0 auto; padding:18px 16px 60px;}
+  header.top{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:6px;}
+  h1{font-size:22px; margin:0; letter-spacing:.3px;}
+  h1 small{display:block; font-size:12px; color:var(--muted); font-weight:400; margin-top:3px;}
+  .headright{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .month-pill{background:var(--chip); padding:6px 12px; border-radius:20px; font-size:13px; color:var(--muted);}
+  .status{font-size:12px; padding:6px 12px; border-radius:20px; margin-bottom:14px; display:inline-block;}
+  .status.cloud{background:rgba(77,208,138,.14); color:var(--good);}
+  .status.local{background:rgba(255,176,32,.14); color:var(--warn);}
+  .status.err{background:rgba(255,92,108,.14); color:var(--bad);}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px;}
+  .card h2{font-size:14px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin:0 0 12px;}
+  label{font-size:12px; color:var(--muted); display:block; margin-bottom:4px;}
+  select,input,button{font-family:inherit; font-size:14px;}
+  select,input[type=text],input[type=number],input[type=password]{
+    background:var(--card2); border:1px solid var(--line); color:var(--txt);
+    padding:9px 11px; border-radius:9px; outline:none; width:100%;}
+  input[type=number]{width:90px;}
+  .rowspace{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  button{cursor:pointer; border:1px solid var(--line); background:var(--card2); color:var(--txt);
+    padding:9px 14px; border-radius:9px; transition:.12s; white-space:nowrap;}
+  button:hover{border-color:var(--accent2); background:#26314a;}
+  button.primary{background:var(--accent2); border-color:var(--accent2); color:#fff; font-weight:600;}
+  button.primary:hover{filter:brightness(1.1);}
+  button.ghost{background:transparent;}
+  button.danger{color:var(--bad); border-color:#4a2530;}
+  button.danger:hover{background:#331a22; border-color:var(--bad);}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px;}
+  .stat{background:var(--card2); border-radius:11px; padding:12px 14px;}
+  .stat .k{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px;}
+  .stat .v{font-size:22px; font-weight:700; margin-top:3px;}
+  .stat .v.good{color:var(--good);} .stat .v.warn{color:var(--warn);} .stat .v.bad{color:var(--bad);}
+  .weeknav{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;}
+  .weeknav .lbl{font-weight:600; font-size:15px; text-align:center; flex:1;}
+  table{width:100%; border-collapse:collapse;}
+  th,td{padding:10px 8px; text-align:left; border-bottom:1px solid var(--line); font-size:14px; vertical-align:middle;}
+  th{font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted);}
+  tr.weekend td{background:rgba(58,134,255,.05);}
+  tr.today td{background:rgba(77,208,138,.08);}
+  .daycell b{font-size:15px;} .daycell span{display:block; font-size:11px; color:var(--muted);}
+  .badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:600;}
+  .b-done{background:rgba(77,208,138,.16); color:var(--good);}
+  .b-missed{background:rgba(255,92,108,.16); color:var(--bad);}
+  .b-partial{background:rgba(255,176,32,.16); color:var(--warn);}
+  .b-future{background:var(--chip); color:var(--muted);}
+  .b-rest{background:rgba(139,151,173,.14); color:var(--muted);}
+  .logbtns{display:flex; gap:5px; flex-wrap:wrap; align-items:center;}
+  .logbtns button{padding:6px 10px; font-size:12px;}
+  .logbtns button.sel-done{background:var(--good); border-color:var(--good); color:#08210f;}
+  .logbtns button.sel-missed{background:var(--bad); border-color:var(--bad); color:#2a0a0e;}
+  .logbtns button.sel-partial{background:var(--warn); border-color:var(--warn); color:#2a1c00;}
+  .logbtns input{width:74px; padding:6px 8px;}
+  .torun{font-weight:700; color:var(--accent2);}
+  .torun.spill{color:var(--warn);}
+  .lock{color:var(--muted); font-size:12px;}
+  .muted{color:var(--muted);} .small{font-size:12px;}
+  .fund-total{font-size:26px; font-weight:800; color:var(--warn);}
+  .note{font-size:12px; color:var(--muted); line-height:1.5; margin-top:8px;}
+  .empty{color:var(--muted); text-align:center; padding:26px 0;}
+  .inline-form{display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;}
+  .hidden{display:none !important;}
+  .admin-tag{font-size:11px; background:rgba(58,134,255,.18); color:var(--accent2); padding:3px 9px; border-radius:20px;}
+  @media(max-width:560px){ th.hide-sm,td.hide-sm{display:none;} .stat .v{font-size:19px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>🏃 Daily Run Tracker
+      <small>1&nbsp;km every weekday &nbsp;·&nbsp; weekends are fundays &nbsp;·&nbsp; miss = carry forward</small>
+    </h1>
+    <div class="headright">
+      <span class="admin-tag hidden" id="adminTag">ADMIN</span>
+      <div class="month-pill" id="monthPill">—</div>
+      <button id="adminBtn" class="ghost">Admin</button>
+    </div>
+  </header>
+  <div class="status local" id="statusBar">Starting…</div>
+
+  <!-- RUNNER MANAGEMENT (admin only) -->
+  <div class="card" id="manageCard">
+    <h2>Runner</h2>
+    <div class="rowspace">
+      <div style="flex:1; min-width:180px;">
+        <label>Select runner (this is you)</label>
+        <select id="runnerSelect"></select>
+      </div>
+      <div style="flex:0 0 auto;" class="admin-only">
+        <label>Daily target (km)</label>
+        <input type="number" id="targetInput" min="0.1" step="0.25" />
+      </div>
+      <button id="saveTargetBtn" class="admin-only">Save target</button>
+      <button id="renameBtn" class="ghost admin-only">Rename</button>
+      <button id="deleteBtn" class="danger admin-only">Delete</button>
+    </div>
+    <div class="inline-form admin-only" style="margin-top:14px;">
+      <div style="flex:1; min-width:180px;">
+        <label>Add a new runner</label>
+        <input type="text" id="newRunnerName" placeholder="Enter name…" />
+      </div>
+      <button id="addRunnerBtn" class="primary">+ Add runner</button>
+    </div>
+    <div class="note non-admin-note">Pick your name above, then log <b>today's</b> run in the table below.
+      Only an admin can add runners, change targets, or edit past days.</div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="card" id="summaryCard" style="display:none;">
+    <h2>This week — <span id="summaryName"></span></h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="k">Daily target</div><div class="v" id="stTarget">–</div></div>
+      <div class="stat"><div class="k">Done this week</div><div class="v good" id="stDone">–</div></div>
+      <div class="stat"><div class="k">Outstanding</div><div class="v warn" id="stBal">–</div></div>
+      <div class="stat"><div class="k" id="penLabel">Projected fine</div><div class="v bad" id="stPen">–</div></div>
+    </div>
+    <div class="note" id="summaryNote"></div>
+  </div>
+
+  <!-- WEEK VIEW -->
+  <div class="card" id="weekCard" style="display:none;">
+    <div class="weeknav">
+      <button id="prevWeek" class="ghost">◀</button>
+      <div class="lbl" id="weekLabel">—</div>
+      <button id="nextWeek" class="ghost">▶</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Day</th><th>Status</th><th>Done (km)</th><th>To run (km)</th><th class="hide-sm">Log</th>
+      </tr></thead>
+      <tbody id="weekBody"></tbody>
+    </table>
+    <div class="note" id="weekNote"></div>
+  </div>
+
+  <!-- GROUP FUND -->
+  <div class="card">
+    <h2>Group fund — <span id="fundMonthLbl"></span></h2>
+    <div id="fundBody"></div>
+    <div class="rowspace" style="margin-top:14px; justify-content:space-between; align-items:center;">
+      <div>Total fund collected: <span class="fund-total" id="fundTotal">₹0</span></div>
+      <button id="resetBtn" class="danger admin-only">Reset month data</button>
+    </div>
+    <div class="note">Fines count for <b>completed weeks only</b>. The current week is a <i>projection</i>.
+      Data covers the whole month — admin uses “Reset month data” when a new month starts.</div>
+  </div>
+
+</div>
+
+<script type="module">
+/* ============================================================
+   Daily Run Tracker — shared (Firebase) + honor-system roles
+   ============================================================ */
+
+/* ---------- 1) FIREBASE CONFIG ----------------------------------------
+   Paste the config from your Firebase project below (see setup steps).
+   Leave the apiKey as "PASTE_..." to run in LOCAL PREVIEW mode instead. */
+const firebaseConfig = {
+  apiKey: "AIzaSyAJ3OaaJ7FtSaXBPYd9u8Cirt8xXfBo34k",
+  authDomain: "run-tracker-c44e1.firebaseapp.com",
+  databaseURL: "https://run-tracker-c44e1-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "run-tracker-c44e1",
+  storageBucket: "run-tracker-c44e1.firebasestorage.app",
+  messagingSenderId: "579559359008",
+  appId: "1:579559359008:web:fedd57a1e753f8e6207245"
+};
+
+/* ---------- 2) SECRET ADMIN NAME --------------------------------------
+   Set this to your own secret admin name. Anyone who types this exact
+   name in the Admin box becomes admin on their device (can edit past
+   days + manage runners). Keep it private — don't use it as a runner name. */
+const ADMIN_NAME = "bhosdike";
+
+/* ====================================================================== */
+
+/* ---------- date helpers (local time) ---------- */
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function startOfToday(){const d=new Date();d.setHours(0,0,0,0);return d;}
+function toISO(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);x.setHours(0,0,0,0);return x;}
+function mondayOf(d){const x=new Date(d);x.setHours(0,0,0,0);const g=(x.getDay()+6)%7;return addDays(x,-g);}
+function isWeekday(d){const g=d.getDay();return g>=1&&g<=5;}
+function sameDay(a,b){return toISO(a)===toISO(b);}
+function fmtKm(n){if(Math.abs(n)<1e-9)return '0';return (Math.round(n*100)/100).toString();}
+function fmtShort(d){return DOW[d.getDay()]+' '+d.getDate();}
+function uid(){return 'r'+Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-3);}
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+/* ---------- app state ---------- */
+let state={runners:[],logs:{}};            // runners:[{id,name,target,order}]  logs:{rid:{iso:{status,km}}}
+let selectedId=null;
+let viewMonday=mondayOf(startOfToday());
+let isAdmin = localStorage.getItem('rt_admin')==='1';
+
+/* ==========================================================
+   STORAGE LAYER — Firebase if configured, else localStorage
+   ========================================================== */
+const usingCloud = !firebaseConfig.apiKey.startsWith('PASTE_');
+let cloud=null;   // {db, refs...}
+
+function setStatus(kind,msg){const el=document.getElementById('statusBar');el.className='status '+kind;el.textContent=msg;}
+
+async function initStore(){
+  if(usingCloud){
+    try{
+      const {initializeApp}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+      const {getDatabase,ref,onValue,set,remove,update}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+      const {getAuth,signInAnonymously,onAuthStateChanged}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+      const app=initializeApp(firebaseConfig);
+      const db=getDatabase(app); const auth=getAuth(app);
+      cloud={db,ref,onValue,set,remove,update};
+      setStatus('local','Connecting…');
+      await signInAnonymously(auth).catch(e=>{ setStatus('err','Auth failed: '+e.code+' (enable Anonymous sign-in)'); throw e; });
+      onValue(ref(db,'/'),snap=>{
+        const v=snap.val()||{};
+        const runners=Object.entries(v.runners||{}).map(([id,r])=>({id,...r}))
+                       .sort((a,b)=>(a.order||0)-(b.order||0));
+        state={runners, logs:v.logs||{}};
+        if(!selectedId||!state.runners.find(r=>r.id===selectedId)) selectedId=state.runners[0]?state.runners[0].id:null;
+        setStatus('cloud','● Live — synced with everyone');
+        renderAll();
+      },err=>setStatus('err','DB error: '+err.message));
+    }catch(e){ console.error(e); setStatus('err','Cloud init failed — running local. '+(e.message||'')); startLocal(); }
+  } else {
+    startLocal();
+  }
+}
+function startLocal(){
+  try{const s=JSON.parse(localStorage.getItem('runTracker_local'));if(s&&s.runners)state=s;}catch(e){}
+  if(!selectedId) selectedId=state.runners[0]?state.runners[0].id:null;
+  setStatus('local','Local preview — not shared. Add Firebase config to go live.');
+  renderAll();
+}
+function saveLocal(){ localStorage.setItem('runTracker_local',JSON.stringify(state)); }
+
+/* write ops (route to cloud or local) */
+function writeLog(rid,iso,val){
+  if(usingCloud&&cloud){const {db,ref,set,remove}=cloud;const r=ref(db,`logs/${rid}/${iso}`);return val===null?remove(r):set(r,val);}
+  if(!state.logs[rid])state.logs[rid]={}; if(val===null)delete state.logs[rid][iso]; else state.logs[rid][iso]=val; saveLocal(); renderAll();
+}
+function writeRunner(r){
+  if(usingCloud&&cloud){const {db,ref,set}=cloud;return set(ref(db,`runners/${r.id}`),{name:r.name,target:r.target,order:r.order});}
+  const i=state.runners.findIndex(x=>x.id===r.id); if(i>=0)state.runners[i]=r; else state.runners.push(r); saveLocal(); renderAll();
+}
+function deleteRunnerStore(rid){
+  if(usingCloud&&cloud){const {db,ref,remove}=cloud;remove(ref(db,`logs/${rid}`));return remove(ref(db,`runners/${rid}`));}
+  state.runners=state.runners.filter(x=>x.id!==rid); delete state.logs[rid]; saveLocal(); renderAll();
+}
+function resetLogsStore(){
+  if(usingCloud&&cloud){const {db,ref,remove}=cloud;return remove(ref(db,'logs'));}
+  state.logs={}; saveLocal(); renderAll();
+}
+
+/* ---------- log access ---------- */
+function getLog(rid,iso){return (state.logs[rid]||{})[iso]||null;}
+function runnerById(id){return state.runners.find(r=>r.id===id);}
+
+/* ==========================================================
+   CORE compute (unchanged rules; verified against examples)
+   ========================================================== */
+function resolveDone(x,target){
+  if(!x.log)return 0;
+  if(x.log.status==='done')return x.weekday?target:(x.log.km||0);
+  if(x.log.status==='missed')return 0;
+  return x.log.km||0;
+}
+function computeWeek(runner,weekMonday){
+  const today=startOfToday(); const target=runner.target;
+  const days=[];
+  for(let i=0;i<7;i++){const date=addDays(weekMonday,i);
+    days.push({date,iso:toISO(date),weekday:isWeekday(date),
+      isPast:date<today,isToday:sameDay(date,today),isFuture:date>today,
+      log:getLog(runner.id,toISO(date))});}
+  let carry=0,doneWeek=0;
+  days.forEach(x=>{const counts=x.isPast||(x.isToday&&x.log);
+    x.req=x.weekday?target:0; x.done=resolveDone(x,target);
+    if(x.done>0)doneWeek+=x.done;
+    if(counts)carry=Math.max(0,carry+x.req-x.done);});
+  const carryNow=carry;
+  const remWeekdays=days.filter(x=>x.weekday&&(x.isFuture||(x.isToday&&!x.log)));
+  const R=remWeekdays.length;
+  const remWeekend=days.filter(x=>!x.weekday&&(x.isFuture||(x.isToday&&!x.log)));
+  days.forEach(x=>{x.toRun=null;x.spill=false;
+    const pending=x.isFuture||(x.isToday&&!x.log); if(!pending)return;
+    if(x.weekday){x.toRun=target+(R>0?carryNow/R:0);}
+    else{ if(R===0&&carryNow>1e-9&&remWeekend.length>0){x.toRun=carryNow/remWeekend.length;x.spill=true;} else x.toRun=0; }});
+  const weekComplete=today>addDays(weekMonday,6);
+  const fine=Math.ceil(carryNow-1e-9)*100;
+  return {days,target,carryNow,fineKm:carryNow,fine,weekComplete,doneWeek,R};
+}
+
+/* ==========================================================
+   RENDER
+   ========================================================== */
+function applyRole(){
+  document.getElementById('adminTag').classList.toggle('hidden',!isAdmin);
+  document.getElementById('adminBtn').textContent=isAdmin?'Exit admin':'Admin';
+  document.querySelectorAll('.admin-only').forEach(el=>el.classList.toggle('hidden',!isAdmin));
+  document.querySelectorAll('.non-admin-note').forEach(el=>el.classList.toggle('hidden',isAdmin));
+  // whole manage card is useful to all (dropdown), but hide extras handled by .admin-only
+}
+function renderRunnerControls(){
+  const sel=document.getElementById('runnerSelect'); sel.innerHTML='';
+  if(state.runners.length===0){const o=document.createElement('option');o.textContent='— no runners yet —';o.value='';sel.appendChild(o);}
+  state.runners.forEach(r=>{const o=document.createElement('option');o.value=r.id;o.textContent=r.name;sel.appendChild(o);});
+  if(selectedId)sel.value=selectedId;
+  const r=runnerById(selectedId);
+  document.getElementById('targetInput').value=r?r.target:1;
+  ['saveTargetBtn','renameBtn','deleteBtn'].forEach(id=>document.getElementById(id).disabled=!r);
+}
+function renderChrome(){
+  const t=startOfToday();
+  document.getElementById('monthPill').textContent=MON[t.getMonth()]+' '+t.getFullYear();
+  document.getElementById('fundMonthLbl').textContent=MON[t.getMonth()]+' '+t.getFullYear();
+  const wend=addDays(viewMonday,6);
+  document.getElementById('weekLabel').textContent='Week of '+fmtShort(viewMonday)+' – '+fmtShort(wend)
+    +((viewMonday.getMonth()!==wend.getMonth())?' '+MON[wend.getMonth()].slice(0,3):'');
+}
+function renderWeek(){
+  const r=runnerById(selectedId);
+  const sc=document.getElementById('summaryCard'),wc=document.getElementById('weekCard');
+  if(!r){sc.style.display='none';wc.style.display='none';return;}
+  sc.style.display='';wc.style.display='';
+  const c=computeWeek(r,viewMonday);
+  const body=document.getElementById('weekBody');body.innerHTML='';
+  c.days.forEach(x=>{
+    const tr=document.createElement('tr');
+    if(!x.weekday)tr.className='weekend'; if(x.isToday)tr.className=(tr.className+' today').trim();
+    const d1=document.createElement('td');d1.className='daycell';
+    d1.innerHTML='<b>'+DOW[x.date.getDay()]+'</b><span>'+x.date.getDate()+' '+MON[x.date.getMonth()].slice(0,3)
+      +(x.weekday?'':' · funday')+(x.isToday?' · today':'')+'</span>';
+    const st=document.createElement('td'),dn=document.createElement('td'),tn=document.createElement('td');
+    const lg=document.createElement('td');lg.className='hide-sm';
+    if(x.log){const map={done:['b-done','Done'],missed:['b-missed','Missed'],partial:['b-partial','Partial']};
+      const m=map[x.log.status]||['b-partial','Logged'];
+      st.innerHTML='<span class="badge '+m[0]+'">'+m[1]+'</span>';dn.textContent=fmtKm(x.done);tn.innerHTML='<span class="muted">—</span>';
+    }else if(x.isPast){st.innerHTML='<span class="badge b-missed">Not logged</span>';dn.textContent='0';tn.innerHTML='<span class="muted">—</span>';
+    }else{ if(x.weekday){st.innerHTML='<span class="badge b-future">To run</span>';dn.innerHTML='<span class="muted">—</span>';tn.innerHTML='<span class="torun">'+fmtKm(x.toRun)+'</span>';}
+      else if(x.spill){st.innerHTML='<span class="badge b-partial">Cover balance</span>';dn.innerHTML='<span class="muted">—</span>';tn.innerHTML='<span class="torun spill">'+fmtKm(x.toRun)+'</span>';}
+      else{st.innerHTML='<span class="badge b-rest">Funday</span>';dn.innerHTML='<span class="muted">—</span>';tn.innerHTML='<span class="muted">rest</span>';} }
+    // editability: admin can edit today+past; runner only today; nobody edits future
+    const editable = x.isToday || (isAdmin && x.isPast);
+    if(editable) lg.appendChild(buildLogControls(r.id,x));
+    else if(x.isFuture) lg.innerHTML='<span class="lock">—</span>';
+    else lg.innerHTML='<span class="lock">🔒 locked</span>';
+    tr.append(d1,st,dn,tn,lg); body.appendChild(tr);
+  });
+  document.getElementById('weekNote').innerHTML=
+    'Outstanding balance splits across remaining weekdays. '+
+    (c.R>0?'Currently ~'+fmtKm(c.carryNow)+' km over '+c.R+' weekday'+(c.R>1?'s':'')+'.'
+          :(c.carryNow>1e-9?'No weekdays left — '+fmtKm(c.carryNow)+' km to cover on the funday(s).':'All caught up. 🎉'));
+  document.getElementById('summaryName').textContent=r.name;
+  document.getElementById('stTarget').textContent=fmtKm(r.target)+' km';
+  document.getElementById('stDone').textContent=fmtKm(c.doneWeek)+' km';
+  document.getElementById('stBal').textContent=fmtKm(c.carryNow)+' km';
+  document.getElementById('stPen').textContent='₹'+c.fine;
+  document.getElementById('penLabel').textContent=c.weekComplete?'Fine owed':'Projected fine';
+  document.getElementById('summaryNote').innerHTML=c.weekComplete
+    ?'Week complete. '+(c.fine>0?('<b style="color:var(--bad)">'+escapeHtml(r.name)+' owes ₹'+c.fine+'</b> ('+fmtKm(c.fineKm)+' km uncovered, rounded up).'):'Fully covered — no fine. 🎉')
+    :'If nothing more is run this week, the fine would be ₹'+c.fine+' ('+fmtKm(c.fineKm)+' km × ₹100/km, rounded up).';
+}
+function buildLogControls(rid,x){
+  const wrap=document.createElement('div');wrap.className='logbtns';
+  const cur=x.log?x.log.status:null;
+  if(x.weekday){
+    wrap.append(
+      btn('Done',cur==='done'?'sel-done':'',()=>writeLog(rid,x.iso,{status:'done'})),
+      btn('Miss',cur==='missed'?'sel-missed':'',()=>writeLog(rid,x.iso,{status:'missed'})));
+    const inp=document.createElement('input');inp.type='number';inp.step='0.25';inp.min='0';inp.placeholder='km';
+    if(cur==='partial')inp.value=x.log.km;
+    wrap.append(inp,btn('Partial',cur==='partial'?'sel-partial':'',()=>{const v=parseFloat(inp.value);if(isNaN(v)||v<0){inp.focus();return;}writeLog(rid,x.iso,{status:'partial',km:v});}));
+  }else{
+    const inp=document.createElement('input');inp.type='number';inp.step='0.25';inp.min='0';inp.placeholder='km run';
+    if(x.log)inp.value=x.log.km;
+    wrap.append(inp,btn(x.log?'Update':'Log run',x.log?'sel-partial':'',()=>{const v=parseFloat(inp.value);if(isNaN(v)||v<0){inp.focus();return;}writeLog(rid,x.iso,{status:'partial',km:v});}));
+  }
+  if(x.log)wrap.append(btn('✕','',()=>writeLog(rid,x.iso,null)));
+  return wrap;
+}
+function btn(label,cls,fn){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.onclick=fn;return b;}
+
+function monthWeeks(){
+  const t=startOfToday();
+  const first=new Date(t.getFullYear(),t.getMonth(),1);
+  const last=new Date(t.getFullYear(),t.getMonth()+1,0);
+  let m=mondayOf(first);const weeks=[];
+  while(m<=last){weeks.push(new Date(m));m=addDays(m,7);}
+  return {weeks};
+}
+function renderFund(){
+  const el=document.getElementById('fundBody');
+  if(state.runners.length===0){el.innerHTML='<div class="empty">Add a runner to start tracking fines.</div>';document.getElementById('fundTotal').textContent='₹0';return;}
+  const {weeks}=monthWeeks();const today=startOfToday();let grand=0;
+  let html='<table><thead><tr><th>Runner</th><th>Completed-week fines</th><th>This week (proj.)</th><th>Owed</th></tr></thead><tbody>';
+  state.runners.forEach(r=>{
+    let owed=0,proj=0;
+    weeks.forEach(wm=>{const c=computeWeek(r,wm);if(c.weekComplete)owed+=c.fine;else if(sameDay(wm,mondayOf(today)))proj=c.fine;});
+    grand+=owed;
+    html+='<tr><td><b>'+escapeHtml(r.name)+'</b></td>'
+      +'<td>'+(owed>0?'<span style="color:var(--bad)">₹'+owed+'</span>':'<span class="muted">₹0</span>')+'</td>'
+      +'<td class="muted">₹'+proj+'</td><td><b>₹'+owed+'</b></td></tr>';
+  });
+  html+='</tbody></table>';el.innerHTML=html;document.getElementById('fundTotal').textContent='₹'+grand;
+}
+function renderAll(){applyRole();renderRunnerControls();renderChrome();renderWeek();renderFund();}
+
+/* ==========================================================
+   EVENTS
+   ========================================================== */
+document.getElementById('runnerSelect').addEventListener('change',e=>{selectedId=e.target.value||null;renderAll();});
+document.getElementById('addRunnerBtn').addEventListener('click',()=>{
+  if(!isAdmin)return; const inp=document.getElementById('newRunnerName');const name=inp.value.trim();if(!name){inp.focus();return;}
+  const r={id:uid(),name,target:1,order:(state.runners.length?Math.max(...state.runners.map(x=>x.order||0))+1:0)};
+  selectedId=r.id; inp.value=''; writeRunner(r);
+});
+document.getElementById('newRunnerName').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('addRunnerBtn').click();});
+document.getElementById('saveTargetBtn').addEventListener('click',()=>{
+  if(!isAdmin)return; const r=runnerById(selectedId);if(!r)return;
+  const v=parseFloat(document.getElementById('targetInput').value);if(isNaN(v)||v<=0){document.getElementById('targetInput').focus();return;}
+  writeRunner({...r,target:v});
+});
+document.getElementById('renameBtn').addEventListener('click',()=>{
+  if(!isAdmin)return; const r=runnerById(selectedId);if(!r)return;
+  const n=prompt('Rename runner:',r.name);if(n&&n.trim())writeRunner({...r,name:n.trim()});
+});
+document.getElementById('deleteBtn').addEventListener('click',()=>{
+  if(!isAdmin)return; const r=runnerById(selectedId);if(!r)return;
+  if(!confirm('Delete '+r.name+' and all their logs?'))return; deleteRunnerStore(r.id);
+});
+document.getElementById('prevWeek').addEventListener('click',()=>{viewMonday=addDays(viewMonday,-7);renderAll();});
+document.getElementById('nextWeek').addEventListener('click',()=>{viewMonday=addDays(viewMonday,7);renderAll();});
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  if(!isAdmin)return; if(!confirm('Clear ALL run logs for everyone this month? Runners & targets stay.'))return; resetLogsStore();
+});
+document.getElementById('adminBtn').addEventListener('click',()=>{
+  if(isAdmin){ if(confirm('Exit admin mode?')){isAdmin=false;localStorage.removeItem('rt_admin');renderAll();} return; }
+  const name=prompt('Enter secret admin name:'); if(name===null)return;
+  if(name.trim()===ADMIN_NAME){isAdmin=true;localStorage.setItem('rt_admin','1');renderAll();}
+  else alert('Not the admin name.');
+});
+
+/* ---------- boot ---------- */
+initStore();
+</script>
+</body>
+</html>
