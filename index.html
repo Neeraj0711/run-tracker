@@ -76,7 +76,35 @@
   .inline-form{display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;}
   .hidden{display:none !important;}
   .admin-tag{font-size:11px; background:rgba(58,134,255,.18); color:var(--accent2); padding:3px 9px; border-radius:20px;}
-  @media(max-width:560px){ th.hide-sm,td.hide-sm{display:none;} .stat .v{font-size:19px;} }
+  #fundBody{overflow-x:auto;}
+  @media(max-width:620px){
+    .wrap{padding:14px 12px 46px;}
+    h1{font-size:19px;}
+    .month-pill{padding:5px 10px; font-size:12px;}
+    .stat-grid{grid-template-columns:1fr 1fr;}
+    .stat .v{font-size:19px;}
+    .card{padding:14px;}
+
+    /* week table -> stacked day cards */
+    #weekCard table,#weekCard thead,#weekCard tbody,#weekCard tr,#weekCard td{display:block;}
+    #weekCard thead{display:none;}
+    #weekCard tr{background:var(--card2); border:1px solid var(--line); border-radius:12px; margin-bottom:10px; padding:2px 12px 8px;}
+    #weekCard tr.weekend{background:#1b2740;}
+    #weekCard tr.today{border-color:var(--good); box-shadow:0 0 0 1px var(--good) inset;}
+    #weekCard td{border-bottom:1px solid var(--line); padding:9px 0; display:flex; justify-content:space-between; align-items:center; gap:14px;}
+    #weekCard td:last-child{border-bottom:none;}
+    #weekCard td.mob-hide{display:none;}
+    #weekCard td::before{content:attr(data-label); color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; flex:0 0 auto;}
+    #weekCard td.daycell{display:block; border-bottom:2px solid var(--line); padding:10px 0 8px;}
+    #weekCard td.daycell::before{content:none;}
+    #weekCard td.daycell b{font-size:16px;}
+    #weekCard td.logtd{display:block;}
+    #weekCard td.logtd::before{display:block; margin-bottom:7px;}
+    #weekCard .logbtns{width:100%;}
+    #weekCard .logbtns button{padding:10px 12px; font-size:13px; flex:1 1 auto;}
+    #weekCard .logbtns input{flex:1 1 70px; padding:9px 8px; width:auto;}
+    .weeknav button{padding:9px 16px;}
+  }
 </style>
 </head>
 <body>
@@ -142,7 +170,7 @@
     </div>
     <table>
       <thead><tr>
-        <th>Day</th><th>Status</th><th>Done (km)</th><th>To run (km)</th><th class="hide-sm">Log</th>
+        <th>Day</th><th>Status</th><th>Done (km)</th><th>To run (km)</th><th>Log</th>
       </tr></thead>
       <tbody id="weekBody"></tbody>
     </table>
@@ -154,11 +182,18 @@
     <h2>Group fund — <span id="fundMonthLbl"></span></h2>
     <div id="fundBody"></div>
     <div class="rowspace" style="margin-top:14px; justify-content:space-between; align-items:center;">
-      <div>Total fund collected: <span class="fund-total" id="fundTotal">₹0</span></div>
-      <button id="resetBtn" class="danger admin-only">Reset month data</button>
+      <div>
+        <div>Group fund pot: <span class="fund-total" id="fundTotal">₹0</span></div>
+        <div class="note" id="pendingLbl" style="margin-top:2px;">Pending collection: ₹0</div>
+      </div>
+      <div class="rowspace" style="align-items:center;">
+        <button id="collectBtn" class="primary admin-only">💰 Collect owed funds</button>
+        <button id="resetBtn" class="danger admin-only">Reset month data</button>
+      </div>
     </div>
-    <div class="note">Fines count for <b>completed weeks only</b>. The current week is a <i>projection</i>.
-      Data covers the whole month — admin uses “Reset month data” when a new month starts.</div>
+    <div class="note">Click <b>Collect owed funds</b> on Monday to bank each completed week's fine into the group pot
+      (settled weeks won't be charged again). Current week is only a <i>projection</i> until it completes.
+      Admin uses “Reset month data” when a new month starts.</div>
   </div>
 
 </div>
@@ -204,7 +239,8 @@ function uid(){return 'r'+Math.random().toString(36).slice(2,8)+Date.now().toStr
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
 /* ---------- app state ---------- */
-let state={runners:[],logs:{}};            // runners:[{id,name,target,order}]  logs:{rid:{iso:{status,km}}}
+let state={runners:[],logs:{},settled:{}}; // runners:[{id,name,target,order}]  logs:{rid:{iso:{status,km}}}
+                                           // settled:{rid:{weekMondayISO:amountCollected}}
 let selectedId=null;
 let viewMonday=mondayOf(startOfToday());
 let isAdmin = localStorage.getItem('rt_admin')==='1';
@@ -232,7 +268,7 @@ async function initStore(){
         const v=snap.val()||{};
         const runners=Object.entries(v.runners||{}).map(([id,r])=>({id,...r}))
                        .sort((a,b)=>(a.order||0)-(b.order||0));
-        state={runners, logs:v.logs||{}};
+        state={runners, logs:v.logs||{}, settled:v.settled||{}};
         if(!selectedId||!state.runners.find(r=>r.id===selectedId)) selectedId=state.runners[0]?state.runners[0].id:null;
         setStatus('cloud','● Live — synced with everyone');
         renderAll();
@@ -244,6 +280,7 @@ async function initStore(){
 }
 function startLocal(){
   try{const s=JSON.parse(localStorage.getItem('runTracker_local'));if(s&&s.runners)state=s;}catch(e){}
+  if(!state.logs)state.logs={}; if(!state.settled)state.settled={};
   if(!selectedId) selectedId=state.runners[0]?state.runners[0].id:null;
   setStatus('local','Local preview — not shared. Add Firebase config to go live.');
   renderAll();
@@ -263,10 +300,17 @@ function deleteRunnerStore(rid){
   if(usingCloud&&cloud){const {db,ref,remove}=cloud;remove(ref(db,`logs/${rid}`));return remove(ref(db,`runners/${rid}`));}
   state.runners=state.runners.filter(x=>x.id!==rid); delete state.logs[rid]; saveLocal(); renderAll();
 }
-function resetLogsStore(){
-  if(usingCloud&&cloud){const {db,ref,remove}=cloud;return remove(ref(db,'logs'));}
-  state.logs={}; saveLocal(); renderAll();
+function resetMonthStore(){
+  if(usingCloud&&cloud){const {db,ref,remove}=cloud;remove(ref(db,'settled'));return remove(ref(db,'logs'));}
+  state.logs={}; state.settled={}; saveLocal(); renderAll();
 }
+function writeSettled(rid,weekISO,amount){
+  if(usingCloud&&cloud){const {db,ref,set}=cloud;return set(ref(db,`settled/${rid}/${weekISO}`),amount);}
+  if(!state.settled[rid])state.settled[rid]={}; state.settled[rid][weekISO]=amount; saveLocal(); renderAll();
+}
+function settledAmt(rid,weekISO){return (state.settled&&state.settled[rid]&&state.settled[rid][weekISO])||0;}
+function isSettled(rid,weekISO){return !!(state.settled&&state.settled[rid]&&state.settled[rid][weekISO]!==undefined);}
+function fundPot(){let t=0;const s=state.settled||{};for(const rid in s)for(const w in s[rid])t+=s[rid][w];return t;}
 
 /* ---------- log access ---------- */
 function getLog(rid,iso){return (state.logs[rid]||{})[iso]||null;}
@@ -347,7 +391,8 @@ function renderWeek(){
     d1.innerHTML='<b>'+DOW[x.date.getDay()]+'</b><span>'+x.date.getDate()+' '+MON[x.date.getMonth()].slice(0,3)
       +(x.weekday?'':' · funday')+(x.isToday?' · today':'')+'</span>';
     const st=document.createElement('td'),dn=document.createElement('td'),tn=document.createElement('td');
-    const lg=document.createElement('td');lg.className='hide-sm';
+    const lg=document.createElement('td'); lg.className='logtd';
+    st.dataset.label='Status'; dn.dataset.label='Done'; tn.dataset.label='To run'; lg.dataset.label='Log';
     if(x.log){const map={done:['b-done','Done'],missed:['b-missed','Missed'],partial:['b-partial','Partial']};
       const m=map[x.log.status]||['b-partial','Logged'];
       st.innerHTML='<span class="badge '+m[0]+'">'+m[1]+'</span>';dn.textContent=fmtKm(x.done);tn.innerHTML='<span class="muted">—</span>';
@@ -355,10 +400,13 @@ function renderWeek(){
     }else{ if(x.weekday){st.innerHTML='<span class="badge b-future">To run</span>';dn.innerHTML='<span class="muted">—</span>';tn.innerHTML='<span class="torun">'+fmtKm(x.toRun)+'</span>';}
       else if(x.spill){st.innerHTML='<span class="badge b-partial">Cover balance</span>';dn.innerHTML='<span class="muted">—</span>';tn.innerHTML='<span class="torun spill">'+fmtKm(x.toRun)+'</span>';}
       else{st.innerHTML='<span class="badge b-rest">Funday</span>';dn.innerHTML='<span class="muted">—</span>';tn.innerHTML='<span class="muted">rest</span>';} }
+    // hide placeholder-dash cells on mobile to keep each day card compact
+    if(dn.innerHTML.indexOf('—')>=0)dn.classList.add('mob-hide');
+    if(tn.innerHTML.indexOf('—')>=0)tn.classList.add('mob-hide');
     // editability: admin can edit today+past; runner only today; nobody edits future
     const editable = x.isToday || (isAdmin && x.isPast);
     if(editable) lg.appendChild(buildLogControls(r.id,x));
-    else if(x.isFuture) lg.innerHTML='<span class="lock">—</span>';
+    else if(x.isFuture){ lg.innerHTML='<span class="lock">—</span>'; lg.classList.add('mob-hide'); }
     else lg.innerHTML='<span class="lock">🔒 locked</span>';
     tr.append(d1,st,dn,tn,lg); body.appendChild(tr);
   });
@@ -406,18 +454,44 @@ function monthWeeks(){
 }
 function renderFund(){
   const el=document.getElementById('fundBody');
-  if(state.runners.length===0){el.innerHTML='<div class="empty">Add a runner to start tracking fines.</div>';document.getElementById('fundTotal').textContent='₹0';return;}
-  const {weeks}=monthWeeks();const today=startOfToday();let grand=0;
-  let html='<table><thead><tr><th>Runner</th><th>Completed-week fines</th><th>This week (proj.)</th><th>Owed</th></tr></thead><tbody>';
+  const potEl=document.getElementById('fundTotal'), pendEl=document.getElementById('pendingLbl'), cb=document.getElementById('collectBtn');
+  potEl.textContent='₹'+fundPot();
+  if(state.runners.length===0){el.innerHTML='<div class="empty">Add a runner to start tracking fines.</div>';pendEl.textContent='Pending collection: ₹0';if(cb)cb.disabled=true;return;}
+  const {weeks}=monthWeeks();const today=startOfToday();
+  let pendGrand=0, readyWeeks=0;
+  weeks.forEach(wm=>{ if(today>addDays(wm,6)){ // completed week
+    const wISO=toISO(wm);
+    if(state.runners.some(r=>{const f=computeWeek(r,wm).fine; return f>0 && !isSettled(r.id,wISO);})) readyWeeks++;
+  }});
+  let html='<table><thead><tr><th>Runner</th><th>This week (proj.)</th><th>Collected</th><th>Owed now</th></tr></thead><tbody>';
   state.runners.forEach(r=>{
-    let owed=0,proj=0;
-    weeks.forEach(wm=>{const c=computeWeek(r,wm);if(c.weekComplete)owed+=c.fine;else if(sameDay(wm,mondayOf(today)))proj=c.fine;});
-    grand+=owed;
+    let proj=0,collected=0,pending=0;
+    weeks.forEach(wm=>{const wISO=toISO(wm);const c=computeWeek(r,wm);
+      if(c.weekComplete){ collected+=settledAmt(r.id,wISO); if(!isSettled(r.id,wISO)) pending+=c.fine; }
+      else if(sameDay(wm,mondayOf(today))) proj=c.fine;});
+    pendGrand+=pending;
     html+='<tr><td><b>'+escapeHtml(r.name)+'</b></td>'
-      +'<td>'+(owed>0?'<span style="color:var(--bad)">₹'+owed+'</span>':'<span class="muted">₹0</span>')+'</td>'
-      +'<td class="muted">₹'+proj+'</td><td><b>₹'+owed+'</b></td></tr>';
+      +'<td class="muted">₹'+proj+'</td>'
+      +'<td class="muted">₹'+collected+'</td>'
+      +'<td>'+(pending>0?'<b style="color:var(--bad)">₹'+pending+'</b>':'<span class="muted">₹0</span>')+'</td></tr>';
   });
-  html+='</tbody></table>';el.innerHTML=html;document.getElementById('fundTotal').textContent='₹'+grand;
+  html+='</tbody></table>';el.innerHTML=html;
+  pendEl.textContent='Pending collection: ₹'+pendGrand+(readyWeeks?'  ·  '+readyWeeks+' week'+(readyWeeks>1?'s':'')+' ready to collect':'');
+  if(cb)cb.disabled=(readyWeeks===0);
+}
+function collectFunds(){
+  if(!isAdmin)return;
+  const {weeks}=monthWeeks();const today=startOfToday();
+  const todo=[];let total=0;const lines=[];
+  state.runners.forEach(r=>{ weeks.forEach(wm=>{
+    if(!(today>addDays(wm,6)))return;          // week not complete yet
+    const wISO=toISO(wm);const f=computeWeek(r,wm).fine;
+    if(f>0 && !isSettled(r.id,wISO)){ todo.push({rid:r.id,wISO,amt:f}); total+=f; lines.push('• '+r.name+' (week of '+fmtShort(wm)+'): ₹'+f); }
+  });});
+  if(todo.length===0){alert('Nothing new to collect — all completed weeks are already settled.');return;}
+  if(today.getDay()!==1 && !confirm("Today isn't Monday. Collect anyway?"))return;
+  if(!confirm('Collect ₹'+total+' into the group fund?\n\n'+lines.join('\n')+'\n\nThis marks these weeks as settled.'))return;
+  todo.forEach(t=>writeSettled(t.rid,t.wISO,t.amt));
 }
 function renderAll(){applyRole();renderRunnerControls();renderChrome();renderWeek();renderFund();}
 
@@ -446,8 +520,9 @@ document.getElementById('deleteBtn').addEventListener('click',()=>{
 });
 document.getElementById('prevWeek').addEventListener('click',()=>{viewMonday=addDays(viewMonday,-7);renderAll();});
 document.getElementById('nextWeek').addEventListener('click',()=>{viewMonday=addDays(viewMonday,7);renderAll();});
+document.getElementById('collectBtn').addEventListener('click',collectFunds);
 document.getElementById('resetBtn').addEventListener('click',()=>{
-  if(!isAdmin)return; if(!confirm('Clear ALL run logs for everyone this month? Runners & targets stay.'))return; resetLogsStore();
+  if(!isAdmin)return; if(!confirm('Clear ALL run logs AND the collected fund for everyone this month? Runners & targets stay.'))return; resetMonthStore();
 });
 document.getElementById('adminBtn').addEventListener('click',()=>{
   if(isAdmin){ if(confirm('Exit admin mode?')){isAdmin=false;localStorage.removeItem('rt_admin');renderAll();} return; }
