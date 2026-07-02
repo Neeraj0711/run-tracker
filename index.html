@@ -76,6 +76,27 @@
   .inline-form{display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;}
   .hidden{display:none !important;}
   .admin-tag{font-size:11px; background:rgba(58,134,255,.18); color:var(--accent2); padding:3px 9px; border-radius:20px;}
+  /* top info buttons */
+  .topbtns{display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;}
+  .topbtns button{flex:0 0 auto; padding:11px 20px; border-radius:24px; font-weight:700; font-size:15px;}
+  #rulesBtn{background:rgba(58,134,255,.16); border-color:var(--accent2); color:#cfe0ff;}
+  #rulesBtn:hover{background:rgba(58,134,255,.28);}
+  #rolloverBtn{background:rgba(77,208,138,.16); border-color:var(--accent); color:#bff0d4;}
+  #rolloverBtn:hover{background:rgba(77,208,138,.28);}
+  #kasamBtn{background:rgba(255,176,32,.16); border-color:var(--warn); color:#ffe1a8;}
+  #kasamBtn:hover{background:rgba(255,176,32,.28);}
+  /* modal popup */
+  .modal-overlay{position:fixed; inset:0; background:rgba(3,6,12,.74); display:none; align-items:center; justify-content:center; padding:16px; z-index:100;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{position:relative; background:var(--card); border:1px solid var(--line); border-radius:16px; max-width:560px; width:100%; max-height:86vh; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:24px 22px;}
+  .modal-box h3{margin:0 0 14px; font-size:20px; line-height:1.3; padding-right:38px;}
+  .modal-box p{font-size:15px; line-height:1.65; margin:0 0 12px;}
+  .modal-box ol{padding-left:20px; margin:0 0 12px;}
+  .modal-box li{font-size:15px; line-height:1.6; margin-bottom:10px;}
+  .modal-box .lead{color:var(--muted);}
+  .modal-box .kasam-text{font-size:19px; line-height:1.75; font-weight:700; text-align:center; padding:10px 4px;}
+  .modal-box .cheer{font-weight:800; color:var(--accent); font-size:16px;}
+  .modal-close{position:absolute; top:12px; right:12px; width:36px; height:36px; padding:0; border-radius:50%; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;}
   #fundBody{overflow-x:auto;}
   @media(max-width:620px){
     .wrap{padding:14px 12px 46px;}
@@ -120,6 +141,11 @@
       <button id="adminBtn" class="ghost">Admin</button>
     </div>
   </header>
+  <div class="topbtns">
+    <button id="rulesBtn">📜 Rules</button>
+    <button id="rolloverBtn">🔁 Rollover</button>
+    <button id="kasamBtn">🤙 Kasam</button>
+  </div>
   <div class="status local" id="statusBar">Starting…</div>
 
   <!-- RUNNER MANAGEMENT (admin only) -->
@@ -194,6 +220,14 @@
     <div class="note">Click <b>Collect owed funds</b> on Monday to bank each completed week's fine into the group pot
       (settled weeks won't be charged again). Current week is only a <i>projection</i> until it completes.
       Admin uses “Reset month data” when a new month starts.</div>
+  </div>
+
+  <!-- MODAL POPUP -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal-box">
+      <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+      <div id="modalContent"></div>
+    </div>
   </div>
 
 </div>
@@ -530,6 +564,61 @@ document.getElementById('adminBtn').addEventListener('click',()=>{
   if(name.trim()===ADMIN_NAME){isAdmin=true;localStorage.setItem('rt_admin','1');renderAll();}
   else alert('Not the admin name.');
 });
+
+/* ---------- info popups (Rules / Kasam) ---------- */
+const RULES_HTML=`
+  <h3>🏃 Weekday Running Challenge – Rules</h3>
+  <p><b>Objective</b><br><span class="lead">Build consistency, discipline, and a healthy lifestyle together.</span></p>
+  <p><b>Rules</b></p>
+  <ol>
+    <li><b>Wake-up Call:</b> Please put alarm for 5AM , Group wake-up call can be made every weekday at 5:00 AM.</li>
+    <li><b>Running Proof:</b> Every member must complete their run and share proof (photo, screenshot, fitness app record, etc.) in the group.</li>
+    <li><b>Penalty:</b> Anyone who fails to wake up or does not share their running proof will contribute ₹100 to the group fund.</li>
+    <li><b>Challenge Days:</b> These rules apply only on weekdays (Monday to Friday).</li>
+    <li><b>Weekends:</b> Saturday and Sunday are Fun Days – no mandatory run, no penalties. Run if you want to, but enjoy your weekend!</li>
+  </ol>
+  <p><b>Remember</b><br><span class="lead">Consistency beats intensity. The goal isn't to run the fastest—it's to show up every weekday.</span></p>
+  <p class="cheer">5 AM. No excuses. See you on the road! 💪🏃</p>`;
+const ROLLOVER_HTML=`
+  <h3>🔁 Run Rollover & Penalty Rules</h3>
+  <p><b>The daily target</b></p>
+  <ol>
+    <li>Each <b>weekday</b> (Mon–Fri) you must run <b>1 km</b>. Saturday & Sunday are <b>fundays</b> — no target.</li>
+    <li>Missing a day is <b>not an instant fine</b>. The distance you didn't run becomes a <b>balance</b> that rolls over.</li>
+  </ol>
+  <p><b>How the rollover works</b></p>
+  <ol>
+    <li>Your unfinished distance is split <b>evenly across the remaining weekdays</b> of the same week.</li>
+    <li><b>Example:</b> miss Monday's 1 km → +0.25 km is added to Tue, Wed, Thu, Fri → each day becomes <b>1.25 km</b>.</li>
+    <li><b>Example:</b> miss Mon <i>and</i> Tue (2 km) → split over Wed, Thu, Fri → each day becomes <b>~1.67 km</b>.</li>
+    <li><b>Partial runs count.</b> Run part of a target and only the leftover rolls over.</li>
+    <li><b>Weekend backup:</b> if no weekdays are left (e.g. you miss Friday), the balance moves to Sat/Sun — you may run on fundays to clear it.</li>
+  </ol>
+  <p><b>✅ How to avoid the penalty</b></p>
+  <ol>
+    <li>Clear your <b>full balance before the week ends</b> (Sunday night).</li>
+    <li>Run the extra on the boosted weekdays, or use the weekend to finish it off.</li>
+    <li>Balance reaches <b>0 km → you owe ₹0</b>. Simple.</li>
+  </ol>
+  <p><b>💰 How the penalty is calculated & collected</b></p>
+  <ol>
+    <li>At <b>week-end</b>, whatever distance is <b>still uncovered</b> is your penalty base.</li>
+    <li>It's <b>rounded up to the next whole km</b>, then charged <b>₹100 per km</b>. <br>(0.75 km left → ₹100 · 1.2 km left → ₹200 · 2 km left → ₹200)</li>
+    <li>The admin taps <b>“Collect owed funds”</b> (usually Monday) and the fine is banked into the <b>group fund pot</b>.</li>
+    <li>A collected week is <b>settled</b> — it is never charged again.</li>
+  </ol>
+  <p class="lead">Track it live: <b>Outstanding</b> in your weekly summary = current balance · the <b>To run</b> column shows your boosted daily target · the <b>Group fund</b> card shows owed vs collected.</p>`;
+const KASAM_HTML=`
+  <h3>🤙 Kasam</h3>
+  <p class="kasam-text">Andi mandi sandi Jo penalty k paise ni dega uski gaand mai bambu ki dandi aur uski maa 🦢</p>`;
+function openModal(html){document.getElementById('modalContent').innerHTML=html;document.getElementById('modal').classList.add('open');}
+function closeModal(){document.getElementById('modal').classList.remove('open');}
+document.getElementById('rulesBtn').addEventListener('click',()=>openModal(RULES_HTML));
+document.getElementById('rolloverBtn').addEventListener('click',()=>openModal(ROLLOVER_HTML));
+document.getElementById('kasamBtn').addEventListener('click',()=>openModal(KASAM_HTML));
+document.getElementById('modalClose').addEventListener('click',closeModal);
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 /* ---------- boot ---------- */
 initStore();
